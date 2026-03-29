@@ -3,21 +3,27 @@ import fetch from "node-fetch";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
-// 1. Configuración del Servidor Express (Fake Port para Render)
+// 1. Configuracion del Servidor Express (Fake Port para Render)
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Ruta principal para verificar el estado
 app.get("/", (req, res) => {
-  res.send("🔥 Hostara Backend: Activo y escuchando pedidos.");
+  res.send("Hostara Backend: Activo y escuchando pedidos.");
+});
+
+// Ruta dedicada para el Pinger (mantiene vivo el servicio)
+app.get("/ping", (req, res) => {
+  res.status(200).send("pong");
 });
 
 app.listen(PORT, () => {
-  console.log(`🌐 Servidor HTTP escuchando en puerto ${PORT} (Render Keep-Alive)`);
+  console.log(`Servidor HTTP escuchando en puerto ${PORT} (Render Keep-Alive)`);
 });
 
-// 2. Configuración de Firebase
+// 2. Configuracion de Firebase
 if (!process.env.FIREBASE_KEY) {
-  console.error("❌ Error: No se encontró la variable FIREBASE_KEY");
+  console.error("Error: No se encontro la variable FIREBASE_KEY");
   process.exit(1);
 }
 
@@ -29,49 +35,45 @@ initializeApp({
 
 const db = getFirestore();
 
-console.log("🔥 Escuchando nuevos pedidos para Carlo Essential...");
+console.log("Escuchando nuevos pedidos para Carlo Essential...");
 
-// 3. Lógica del Listener de Firestore
+// 3. Logica del Listener de Firestore
 let initialized = false;
 
 db.collection("orders").onSnapshot(async (snap) => {
+  // Evitamos que se disparen notificaciones por pedidos viejos al arrancar
   if (!initialized) {
     initialized = true;
+    console.log("Conexion establecida. Esperando nuevos pedidos...");
     return;
   }
 
   for (const change of snap.docChanges()) {
+    // Solo actuamos si el documento es nuevo ("added")
     if (change.type === "added") {
-      const pedido = change.doc.data();
-
-      const nombre = pedido.nombre || "Cliente";
-      const total = Number(pedido.total || 0).toLocaleString("es-AR");
-      const cantItems = (pedido.items || []).length;
-      const itemsTxt = cantItems === 1 ? "1 producto" : `${cantItems} productos`;
-
-      const mensaje = `🛍 ${nombre} - $${total} (${itemsTxt})`;
-
-      console.log("🛒 Nuevo pedido detectado:", mensaje);
+      console.log("Nuevo pedido detectado!");
 
       try {
         const response = await fetch("https://ntfy.sh/Carlo_essential", {
           method: "POST",
           headers: {
-            "Title": "¡Nuevo pedido en Carlo Essential!",
+            "Title": "Nuevo pedido en tu tienda",
             "Priority": "high",
-            "Tags": "shopping_bags,moneybag",
+            // Eliminamos los tags que generan iconos visuales
+            "Icon": "https://carloessential.com.ar/logo.webp",
+            "Click": "https://carlo-notificaciones.vercel.app/admin.html",
             "Content-Type": "text/plain; charset=utf-8"
           },
-          body: `${mensaje}\nIngresá al panel para gestionarlo.`
+          body: "Clic para verlo"
         });
 
         if (response.ok) {
-          console.log("✅ Notificación enviada correctamente.");
+          console.log("Notificacion enviada correctamente a ntfy.");
         } else {
-          console.error("⚠️ Error en ntfy:", response.statusText);
+          console.error("Error en ntfy:", response.statusText);
         }
       } catch (error) {
-        console.error("❌ Error al conectar con ntfy:", error.message);
+        console.error("Error al conectar con ntfy:", error.message);
       }
     }
   }
