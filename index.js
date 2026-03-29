@@ -1,8 +1,21 @@
+import express from "express";
 import fetch from "node-fetch";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
-// Validamos que la variable de entorno exista para evitar errores al arrancar
+// 1. Configuración del Servidor Express (Fake Port para Render)
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get("/", (req, res) => {
+  res.send("🔥 Hostara Backend: Activo y escuchando pedidos.");
+});
+
+app.listen(PORT, () => {
+  console.log(`🌐 Servidor HTTP escuchando en puerto ${PORT} (Render Keep-Alive)`);
+});
+
+// 2. Configuración de Firebase
 if (!process.env.FIREBASE_KEY) {
   console.error("❌ Error: No se encontró la variable FIREBASE_KEY");
   process.exit(1);
@@ -18,16 +31,15 @@ const db = getFirestore();
 
 console.log("🔥 Escuchando nuevos pedidos para Carlo Essential...");
 
+// 3. Lógica del Listener de Firestore
 let initialized = false;
 
 db.collection("orders").onSnapshot(async (snap) => {
-  // Ignoramos la carga inicial de documentos existentes
   if (!initialized) {
     initialized = true;
     return;
   }
 
-  // Usamos for...of en lugar de forEach para manejar mejor el async/await
   for (const change of snap.docChanges()) {
     if (change.type === "added") {
       const pedido = change.doc.data();
@@ -50,7 +62,6 @@ db.collection("orders").onSnapshot(async (snap) => {
             "Tags": "shopping_bags,moneybag",
             "Content-Type": "text/plain; charset=utf-8"
           },
-          // Aquí integramos el mensaje que armaste arriba
           body: `${mensaje}\nIngresá al panel para gestionarlo.`
         });
 
